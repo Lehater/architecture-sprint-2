@@ -1,0 +1,91 @@
+name: mongo-sharding
+
+services:
+
+  # App
+  pymongo_api:
+    container_name: pymongo_api
+    build:
+      context: api_app
+      dockerfile: Dockerfile
+    image: kazhem/pymongo_api:1.0.0
+    depends_on:
+      mongos:
+        condition: service_healthy
+    ports:
+      - 8080:8080
+    environment:
+      MONGODB_URL: "mongodb://mongos:27018"  # Используем mongos как роутер
+      MONGODB_DATABASE_NAME: "somedb"
+
+  # Config Server
+  configsrv:
+    image: mongo:6.0.1
+    container_name: configsrv
+    command: mongod --configsvr --replSet rs-config --port 27017
+    volumes:
+      - config-data:/data/db
+      - ./db/scripts:/scripts
+    ports:
+      - "27017:27017"
+#    healthcheck:
+#      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+#      interval: 5s
+#      retries: 15
+
+  # Shard 1
+  shard1:
+    image: mongo:6.0.1
+    container_name: shard1
+    command: mongod --shardsvr --replSet rs-shard1 --port 27019
+    volumes:
+      - shard1-data:/data/db
+      - ./db/scripts:/scripts
+    ports:
+      - "27019:27019"
+#    healthcheck:
+#      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+#      interval: 5s
+#      retries: 15
+
+  # Shard 2
+  shard2:
+    image: mongo:6.0.1
+    container_name: shard2
+    command: mongod --shardsvr --replSet rs-shard2 --port 27020
+    volumes:
+      - shard2-data:/data/db
+      - ./db/scripts:/scripts
+    ports:
+      - "27020:27020"
+#    healthcheck:
+#      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+#      interval: 5s
+#      retries: 15
+
+  # Mongos Router
+  mongos:
+    image: mongo:6.0.1
+    container_name: mongos
+#    depends_on:
+#      configsrv:
+#        condition: service_healthy
+#      shard1:
+#        condition: service_healthy
+#      shard2:
+#        condition: service_healthy
+    command: mongos --configdb rs-config/configsrv:27017 --port 27018
+    volumes:
+      - ./db/scripts:/scripts
+    ports:
+      - "27018:27018"
+#    healthcheck:
+#      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+#      interval: 5s
+#      retries: 15
+
+
+volumes:
+  config-data:
+  shard1-data:
+  shard2-data:
